@@ -9,7 +9,6 @@ import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 import org.springframework.web.socket.sockjs.client.SockJsClient;
 
@@ -25,7 +24,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@TestPropertySource(locations = "classpath:application.yml")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class WebSocketEventListenerTest {
 
@@ -40,7 +38,7 @@ class WebSocketEventListenerTest {
     }
 
     @Test
-    public void testTowUserSubscribed() throws InterruptedException, ExecutionException, TimeoutException {
+    public void testTowUserSubscribedSameRoom() throws InterruptedException, ExecutionException, TimeoutException {
         //Given one user to subscribe to movie room
         String user1 = "mrinal";
         BlockingQueue<String> result1 = connectAndSubscribe(user1, "movie");

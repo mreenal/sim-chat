@@ -1,7 +1,6 @@
 package com.demo.chat.controller;
 
 import com.demo.chat.helper.TestHelper;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,7 +8,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 import org.springframework.web.socket.sockjs.client.SockJsClient;
 
@@ -23,9 +22,10 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@TestPropertySource(locations = "classpath:application.yml")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class MessageControllerTest {
 
     @LocalServerPort
@@ -38,31 +38,23 @@ class MessageControllerTest {
         stompClient.setMessageConverter(new StringMessageConverter());
     }
 
-    @AfterEach
-    void end() {
-        stompClient.stop();
-    }
 
     @Test
-    public void testChatSend() throws InterruptedException, ExecutionException, TimeoutException {
+    public void testChatSendToSameRoom() throws InterruptedException, ExecutionException, TimeoutException {
         //Given one user to subscribe to movie room
         String user1 = "mrinal";
-        String URL1 = "ws://localhost:" + port + "/chat-ws?user=" + user1;
-        StompSession stompSession1 = stompClient.connect(URL1, new StompSessionHandlerAdapter() {
-        }).get(1, SECONDS);
-        BlockingQueue<String> result1 = new ArrayBlockingQueue<>(3);
-        stompSession1.subscribe("/rooms/movie", new TestHelper.RoomUserListMessageHandler(result1));
+        StompSession stompSession1 = createStompSession(user1);
+        BlockingQueue<String> result1 = connectAndSubscribe(stompSession1, "movie");
 
-        //When another user also subscribe to movie room
+        //And another user also subscribe to movie room
         String user2 = "tori";
-        String URL2 = "ws://localhost:" + port + "/chat-ws?user=" + user2;
-        StompSession stompSession2 = stompClient.connect(URL2, new StompSessionHandlerAdapter() {
-        }).get(1, SECONDS);
-        BlockingQueue<String> result2 = new ArrayBlockingQueue<>(3);
-        stompSession2.subscribe("/rooms/movie", new TestHelper.RoomUserListMessageHandler(result2));
+        StompSession stompSession2 = createStompSession(user2);
+        BlockingQueue<String> result2 = connectAndSubscribe(stompSession2, "movie");
 
+        // When user 1 send message to room
         stompSession1.send("/app/message/rooms/movie", "Hello Everyone");
 
+        // Then both user in the room gets the message
         await()
                 .atMost(3, SECONDS)
                 .untilAsserted(() -> assertThat(result1.poll(), containsString("Hello Everyone from " + user1)));
@@ -70,6 +62,43 @@ class MessageControllerTest {
                 .atMost(3, SECONDS)
                 .untilAsserted(() -> assertThat(result2.poll(), containsString("Hello Everyone from " + user1)));
 
+    }
+
+    @Test
+    public void testChatSendToDifferentRoom() throws InterruptedException, ExecutionException, TimeoutException {
+        //Given one user to subscribe to movie room
+        String user1 = "mrinal";
+        StompSession stompSession1 = createStompSession(user1);
+        BlockingQueue<String> result1 = connectAndSubscribe(stompSession1, "movie");
+
+        //And another user subscribe to sports room
+        String user2 = "tori";
+        StompSession stompSession2 = createStompSession(user2);
+        BlockingQueue<String> result2 = connectAndSubscribe(stompSession2, "sports");
+
+        // When user 1 send message to movie room
+        stompSession1.send("/app/message/rooms/movie", "Hello Everyone");
+
+        // Then only user in movie room gets message
+        await()
+                .atMost(3, SECONDS)
+                .untilAsserted(() -> assertThat(result1.poll(), containsString("Hello Everyone from " + user1)));
+        await()
+                .atMost(3, SECONDS)
+                .untilAsserted(() -> assertThat(result2.poll(), not(containsString("Hello Everyone from " + user1))));
+
+    }
+
+    private BlockingQueue<String> connectAndSubscribe(StompSession stompSession, String roomName) throws InterruptedException, ExecutionException, TimeoutException {
+        BlockingQueue<String> result = new ArrayBlockingQueue<>(3);
+        stompSession.subscribe("/rooms/" + roomName, new TestHelper.RoomUserListMessageHandler(result));
+        return result;
+    }
+
+    private StompSession createStompSession(String user) throws InterruptedException, ExecutionException, TimeoutException {
+        String URL = "ws://localhost:" + port + "/chat-ws?user=" + user;
+        return stompClient.connect(URL, new StompSessionHandlerAdapter() {
+        }).get(1, SECONDS);
     }
 
 
