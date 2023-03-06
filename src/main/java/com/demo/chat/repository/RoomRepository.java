@@ -12,5 +12,8 @@ public interface RoomRepository extends JpaRepository<RoomLog, Integer> {
 
     List<RoomLog> findByRoomAndEvent(String room, UserAction event);
 
-//    void deleteByRoomAndUserName(String room, String user);
+    List<RoomLog> findByUserName(String userName);
+
+    List<RoomLog> findByEvent(UserAction event);
+
 }

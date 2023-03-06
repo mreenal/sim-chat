@@ -66,8 +66,4 @@ public class RoomLog {
         this.event = event;
     }
 
-    public String formatSendMessage() {
-        return this.userName + " has joined " + this.room + " - " + this.timestamp;
-    }
-
 }

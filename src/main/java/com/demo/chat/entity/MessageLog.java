@@ -64,4 +64,8 @@ public class MessageLog {
     public void setTimestamp(LocalDateTime timestamp) {
         this.timestamp = timestamp;
     }
+
+    public String formatSendMessage() {
+        return this.message + " from " + this.userName + " at " + this.timestamp.toLocalTime().toString();
+    }
 }

@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Description;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,5 +25,17 @@ public class RoomService {
         roomRepository.save(log);
         List<RoomLog> updatedLogs = roomRepository.findByRoomAndEvent(roomName, UserAction.JOINED_ROOM);
         return updatedLogs.stream().map(RoomLog::getUserName).collect(Collectors.toList());
+    }
+
+    @Description("on disconnect update all rooms user was subscribed and return updated joined user for the room")
+    public Map<String, List<String>> updateOnDisconnect(String userName) {
+        List<RoomLog> logs = roomRepository.findByUserName(userName);
+        logs.forEach(log -> {
+            log.setEvent(UserAction.LEFT_ROOM);
+            roomRepository.save(log);
+        });
+        return roomRepository.findByEvent(UserAction.JOINED_ROOM)
+                .stream().collect(Collectors.groupingBy(RoomLog::getRoom,
+                        Collectors.mapping(RoomLog::getUserName, Collectors.toList())));
     }
 }

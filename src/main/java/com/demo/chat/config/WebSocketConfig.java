@@ -1,6 +1,5 @@
 package com.demo.chat.config;
 
-import com.sun.security.auth.UserPrincipal;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServletServerHttpRequest;
@@ -22,7 +21,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableSimpleBroker("/rooms");
         config.setApplicationDestinationPrefixes("/app");
-//        config.setUserDestinationPrefix("/user");
     }
 
     @Override
@@ -32,16 +30,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setHandshakeHandler(new DefaultHandshakeHandler() {
                     @Override
                     protected Principal determineUser(ServerHttpRequest request, WebSocketHandler wsHandler, Map<String, Object> attributes) {
-                        String name = ((ServletServerHttpRequest) request).getServletRequest().getParameter("user");
+                        String name = ((ServletServerHttpRequest) request).getServletRequest().getParameter("user"); // consider user id is unique
                         return () -> name;
                     }
 
 
                 })
-
                 .withSockJS();
     }
-
-
 
 }

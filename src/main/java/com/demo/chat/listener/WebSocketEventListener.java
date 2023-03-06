@@ -1,4 +1,4 @@
-package com.demo.chat.config;
+package com.demo.chat.listener;
 
 import com.demo.chat.service.RoomService;
 import org.springframework.context.annotation.Description;
@@ -12,6 +12,7 @@ import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static com.demo.chat.entity.UserAction.JOINED_ROOM;
@@ -30,9 +31,8 @@ public class WebSocketEventListener {
         this.roomService = roomService;
     }
 
-
     @EventListener
-    @Description("When a user joined a room, save the entry and send back the updated jined user")
+    @Description("When a user joined a room, save the entry and send back the updated joined user")
     public void handleSessionSubscribeEvent(SessionSubscribeEvent event) {
         String destination = (String) event.getMessage().getHeaders().get("simpDestination");
         String userName = Objects.requireNonNull(event.getUser()).getName();
@@ -40,7 +40,7 @@ public class WebSocketEventListener {
         if (isRoom(destination)) {
             String roomName = getRoomName(destination);
             List<String> currentUsers = roomService.updateRoomLogsAndGetUsers(roomName, userName, JOINED_ROOM);
-            messagingTemplate.convertAndSend(destination, currentUsers);
+            messagingTemplate.convertAndSend(destination, currentUsers.toString());
         }
     }
 
@@ -53,7 +53,7 @@ public class WebSocketEventListener {
         if (destination != null && destination.startsWith("/rooms")) {
             String roomName = getRoomName(destination);
             List<String> currentUsers = roomService.updateRoomLogsAndGetUsers(roomName, userName, LEFT_ROOM);
-            messagingTemplate.convertAndSend(destination, currentUsers);
+            messagingTemplate.convertAndSend(destination, currentUsers.toString());
         }
     }
 
@@ -66,11 +66,16 @@ public class WebSocketEventListener {
     }
 
     @EventListener
+    @Description("when user disconnects remove update room user list and send to other users")
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         String sessionId = event.getMessage().getHeaders().get("simpSessionId", String.class);
         Principal principal = event.getUser();
         System.out.println("Session disconnected " + sessionId + ": " + principal);
-
+        String userName = Objects.requireNonNull(event.getUser()).getName();
+        Map<String, List<String>> update = roomService.updateOnDisconnect(userName);
+        update.forEach((room, users) -> {
+            messagingTemplate.convertAndSend("/rooms/" + room, users.toString());
+        });
     }
 
 }
