@@ -1,8 +1,6 @@
 package com.demo.chat.listener;
 
 import com.demo.chat.helper.TestHelper;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,6 +8,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 import org.springframework.web.socket.sockjs.client.SockJsClient;
@@ -23,11 +22,11 @@ import static com.demo.chat.helper.TestHelper.createTransportClient;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestPropertySource(locations = "classpath:application.yml")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class WebSocketEventListenerTest {
 
     @LocalServerPort
@@ -40,30 +39,15 @@ class WebSocketEventListenerTest {
         stompClient.setMessageConverter(new StringMessageConverter());
     }
 
-    @AfterEach
-    void end() {
-        stompClient.stop();
-    }
-
     @Test
     public void testTowUserSubscribed() throws InterruptedException, ExecutionException, TimeoutException {
         //Given one user to subscribe to movie room
         String user1 = "mrinal";
-        String URL1 = "ws://localhost:" + port + "/chat-ws?user=" + user1;
-        StompSession stompSession1 = stompClient.connect(URL1, new StompSessionHandlerAdapter() {
-        }).get(1, SECONDS);
-        BlockingQueue<String> result1 = new ArrayBlockingQueue<>(2);
-        stompSession1.subscribe("/rooms/movie", new TestHelper.RoomUserListMessageHandler(result1));
+        BlockingQueue<String> result1 = connectAndSubscribe(user1, "movie");
 
         //When another user also subscribe to movie room
         String user2 = "tori";
-        String URL2 = "ws://localhost:" + port + "/chat-ws?user=" + user2;
-        StompSession stompSession2 = stompClient.connect(URL2, new StompSessionHandlerAdapter() {
-        }).get(1, SECONDS);
-        BlockingQueue<String> result2 = new ArrayBlockingQueue<>(2);
-        stompSession2.subscribe("/rooms/movie", new TestHelper.RoomUserListMessageHandler(result2));
-
-        ObjectMapper mapper = new ObjectMapper();
+        BlockingQueue<String> result2 = connectAndSubscribe(user2, "movie");
 
         // Then both user in the room get updated user list
         await()
@@ -75,5 +59,36 @@ class WebSocketEventListenerTest {
                 .untilAsserted(() -> assertThat(result2.poll(), allOf(containsString(user1), containsString(user2))));
 
     }
+
+    @Test
+    public void testTowUserSubscribedDifferentRoom() throws InterruptedException, ExecutionException, TimeoutException {
+        //Given one user to subscribe to movie room
+        String user1 = "mrinal";
+        BlockingQueue<String> result1 = connectAndSubscribe(user1, "movie");
+
+        //When another user also subscribe to sports room
+        String user2 = "tori";
+        BlockingQueue<String> result2 = connectAndSubscribe(user2, "sports");
+
+        // Then different room user should not get notification
+        await()
+                .atMost(3, SECONDS)
+                .untilAsserted(() -> assertThat(result1.poll(), allOf(containsString(user1), not(containsString(user2)))));
+
+        await()
+                .atMost(3, SECONDS)
+                .untilAsserted(() -> assertThat(result2.poll(), allOf(not(containsString(user1)), containsString(user2))));
+
+    }
+
+    private BlockingQueue<String> connectAndSubscribe(String user, String roomName) throws InterruptedException, ExecutionException, TimeoutException {
+        String URL = "ws://localhost:" + port + "/chat-ws?user=" + user;
+        StompSession stompSession = stompClient.connect(URL, new StompSessionHandlerAdapter() {
+        }).get(1, SECONDS);
+        BlockingQueue<String> result = new ArrayBlockingQueue<>(2);
+        stompSession.subscribe("/rooms/" + roomName, new TestHelper.RoomUserListMessageHandler(result));
+        return result;
+    }
+
 
 }
