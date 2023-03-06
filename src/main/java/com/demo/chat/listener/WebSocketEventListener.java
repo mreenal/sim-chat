@@ -6,6 +6,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
@@ -15,6 +16,8 @@ import java.util.Objects;
 
 import static com.demo.chat.entity.UserAction.JOINED_ROOM;
 import static com.demo.chat.entity.UserAction.LEFT_ROOM;
+import static com.demo.chat.util.RoomUtil.getRoomName;
+import static com.demo.chat.util.RoomUtil.isRoom;
 
 @Component
 public class WebSocketEventListener {
@@ -34,7 +37,7 @@ public class WebSocketEventListener {
         String destination = (String) event.getMessage().getHeaders().get("simpDestination");
         String userName = Objects.requireNonNull(event.getUser()).getName();
 
-        if (destination != null && destination.startsWith("/rooms")) {
+        if (isRoom(destination)) {
             String roomName = getRoomName(destination);
             List<String> currentUsers = roomService.updateRoomLogsAndGetUsers(roomName, userName, JOINED_ROOM);
             messagingTemplate.convertAndSend(destination, currentUsers);
@@ -62,8 +65,12 @@ public class WebSocketEventListener {
 
     }
 
-    private String getRoomName(String destination) {
-        int index = destination.lastIndexOf('/');
-        return destination.substring(index + 1);
+    @EventListener
+    public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
+        String sessionId = event.getMessage().getHeaders().get("simpSessionId", String.class);
+        Principal principal = event.getUser();
+        System.out.println("Session disconnected " + sessionId + ": " + principal);
+
     }
+
 }
